@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Service Dashboard</title>
+    <link rel="stylesheet" href="/assets/css/styles.css">
+</head>
+<body>
+<div class="container">
+    <div class="navigation">
+        <ul>
+            <li><span class="icon"><img src="/assets/imgs/logo.png" width="50" height="60" alt="Logo"></span><h4><span class="title">POLA.LK<br>Online Web Store</span></h4></li>
+            <li><a href="/customer_service.html"><span class="icon"><ion-icon name="home-outline"></ion-icon></span><span class="title">Customer Service Dashboard</span></a></li>
+            <li><button id="theme-toggle" class="theme-toggle"><span class="icon"><ion-icon name="moon-outline"></ion-icon></span><span class="title">Toggle Theme</span></button></li>
+            <li><a href="/logout"><span class="icon"><ion-icon name="log-out-outline"></ion-icon></span><span class="title">Sign Out</span></a></li>
+        </ul>
+    </div>
+    <div class="main">
+        <div class="topbar">
+            <div class="toggle"><ion-icon name="menu-outline"></ion-icon></div>
+            <div class="search"><label><input type="text" placeholder="Search here"><ion-icon name="search-outline"></ion-icon></label></div>
+            <div class="user"><img src="/assets/imgs/customer01.jpg" alt="User"></div>
+        </div>
+        <div class="form-container">
+            <h2>Welcome, Customer Service!</h2>
+            <h3>Customer Tickets</h3>
+            <table id="ticket-table">
+                <thead>
+                <tr>
+                    <th>Ticket ID</th>
+                    <th>Customer Email</th>
+                    <th>Message</th>
+                    <th>Reply</th>
+                    <th>Actions</th>
+                </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <div id="ticket-error" class="error" style="display: none; color: red;"></div>
+            <div id="ticket-success" style="color: green; display: none;"></div>
+
+            <h3>Reply to Ticket</h3>
+            <form id="reply-form" style="display: none;">
+                <input type="hidden" id="reply-ticketID" name="ticketID">
+                <div>
+                    <label for="reply-customerMessage">Customer Message:</label>
+                    <textarea id="reply-customerMessage" readonly></textarea>
+                </div>
+                <div>
+                    <label for="reply-serviceReply">Your Reply:</label>
+                    <textarea id="reply-serviceReply" name="serviceReply" required></textarea>
+                </div>
+                <button type="submit">Send Reply</button>
+                <button type="button" id="cancel-reply">Cancel</button>
+            </form>
+            <div id="reply-error" class="error" style="display: none; color: red;"></div>
+            <div id="reply-success" style="color: green; display: none;"></div>
+        </div>
+    </div>
+</div>
+<script>
+    let list = document.querySelectorAll('.navigation li');
+    function activeLink() { list.forEach(item => item.classList.remove('hovered')); this.classList.add('hovered'); }
+    list.forEach(item => item.addEventListener('mouseover', activeLink));
+    let toggle = document.querySelector('.toggle');
+    let navigation = document.querySelector('.navigation');
+    let main = document.querySelector('.main');
+    toggle.onclick = function () { navigation.classList.toggle('active'); main.classList.toggle('active'); };
+    const themeToggle = document.getElementById('theme-toggle');
+    themeToggle.addEventListener('click', () => { document.body.classList.toggle('dark-theme'); });
+
+    // Helper function to clear messages
+    function clearMessages() {
+        document.getElementById('ticket-error').style.display = 'none';
+        document.getElementById('ticket-success').style.display = 'none';
+        document.getElementById('reply-error').style.display = 'none';
+        document.getElementById('reply-success').style.display = 'none';
+    }
+
+    // Helper function to safely escape strings
+    function escapeString(str) {
+        return str ? str.replace(/'/g, "\\'") : '';
+    }
+
+    // Fetch and display tickets
+    async function fetchTickets() {
+        try {
+            const response = await fetch('/api/tickets/', {
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include'
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            const tickets = await response.json();
+            const tbody = document.querySelector('#ticket-table tbody');
+            tbody.innerHTML = '';
+            tickets.forEach(ticket => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${ticket.ticketID}</td>
+                    <td>${ticket.userId}</td>
+                    <td>${ticket.customerMessage || 'No message'}</td>
+                    <td>${ticket.serviceReply || 'No reply yet'}</td>
+                    <td>
+                        <button onclick="replyToTicket('${ticket.ticketID}', '${escapeString(ticket.customerMessage)}', '${escapeString(ticket.serviceReply)}')">Reply</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        } catch (error) {
+            document.getElementById('ticket-error').textContent = `Error fetching tickets: ${error.message}`;
+            document.getElementById('ticket-error').style.display = 'block';
+        }
+    }
+
+    // Reply to ticket
+    function replyToTicket(ticketID, customerMessage, serviceReply) {
+        document.getElementById('reply-ticketID').value = ticketID;
+        document.getElementById('reply-customerMessage').value = customerMessage || '';
+        document.getElementById('reply-serviceReply').value = serviceReply || '';
+        document.getElementById('reply-form').style.display = 'block';
+        clearMessages();
+    }
+
+    // Submit reply form
+    document.getElementById('reply-form').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        clearMessages();
+        const formData = new FormData(this);
+        const ticket = {
+            serviceReply: formData.get('serviceReply')
+        };
+        const ticketID = formData.get('ticketID');
+        try {
+            const response = await fetch(`/api/tickets/${ticketID}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify(ticket)
+            });
+            if (!response.ok) {
+                const errorData = await response.text();
+                throw new Error(errorData || `HTTP error! Status: ${response.status}`);
+            }
+            document.getElementById('reply-success').textContent = 'Reply sent successfully!';
+            document.getElementById('reply-success').style.display = 'block';
+            document.getElementById('reply-form').style.display = 'none';
+            await fetchTickets();
+        } catch (error) {
+            document.getElementById('reply-error').textContent = `Error sending reply: ${error.message}`;
+            document.getElementById('reply-error').style.display = 'block';
+        }
+    });
+
+    // Cancel reply
+    document.getElementById('cancel-reply').addEventListener('click', () => {
+        document.getElementById('reply-form').style.display = 'none';
+        clearMessages();
+    });
+
+    // Fetch tickets on page load
+    window.addEventListener('load', fetchTickets);
+</script>
+<script type="module" src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"></script>
+<script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+</body>
+</html>
